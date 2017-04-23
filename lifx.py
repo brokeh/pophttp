@@ -8,7 +8,7 @@ BROADCAST_SITE = bytearray(6)
 
 class DevicePower(object):
     OFF = 0
-    ON  = 0xFFFF
+    ON = 0xFFFF
 
 class PayloadDef(object):
     def __init__(self, name, members, fmt):
@@ -19,14 +19,14 @@ class PayloadDef(object):
 
     def encode(self, members):
         if sys.version_info > (3, 0):
-            members = [m.encode('utf-8') if type(m) is str else m for m in members]
+            members = [m.encode('utf-8') if isinstance(m, str) else m for m in members]
         return struct.pack(self.fmt, *members)
 
     def decode(self, payload):
         members = struct.unpack(self.fmt, payload)
         if sys.version_info > (3, 0):
             def try_decode(val):
-                if type(val) is bytes:
+                if isinstance(val, bytes):
                     try:
                         return val.decode('utf-8')
                     except UnicodeDecodeError:
@@ -66,7 +66,7 @@ class Packet(object):
             sequence = self.sequence_number & 0xFF,
             timestamp = 0,
             code = self.pkt_def.code,
-            reserved = 0,
+            reserved = 0
         )
         return self.pkt_def.header_fmt.encode(self.header) + self.pkt_def.payload_fmt.encode(self.payload)
 
@@ -84,7 +84,7 @@ class Packet(object):
     def __repr__(self):
         return repr(self.payload)
 
-    code = property(lambda self:self.pkt_def.code)
+    code = property(lambda self: self.pkt_def.code)
 
 class PacketDef(object):
     header_fmt = PayloadDef('header', 'size protocol_and_flags source target site acknowledge sequence timestamp code reserved', 'HHI8s6sBBQHH')
@@ -104,7 +104,7 @@ class PacketDef(object):
 
 class Message(object):
     Device_GetVersion = PacketDef(32, 'Device_GetVersion')
-    Device_StateVersion = PacketDef(33, 'Device_StateVersion', 'vendor product version', 'III')        
+    Device_StateVersion = PacketDef(33, 'Device_StateVersion', 'vendor product version', 'III')
     Device_Acknowledgment = PacketDef(45, 'Device_Acknowledgment')
     Light_Get = PacketDef(101, 'Light_Get')
     Light_SetColor = PacketDef(102, 'Light_SetColor', 'stream hue saturation brightness kelvin duration', 'BHHHHI')
