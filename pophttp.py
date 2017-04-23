@@ -67,7 +67,7 @@ class MessageHandler(object):
         )
 
         if len(urls) == 0:
-            log.warning('request %dh;%ds;%db;%dk;%s not mapped to a URL',
+            log.warning('request %dh,%ds,%db,%dk,%s not mapped to a URL',
                 self.color_msg.hue,
                 self.color_msg.saturation,
                 self.color_msg.brightness,
@@ -139,7 +139,7 @@ class Config(object):
         if config.has_section('switches'):
             for cfg, url in config.items('switches'):
                 parsed_cfg = dict(h=None, s=None, b=None, k=None, p=None)
-                for param in cfg.lower().split(';'):
+                for param in cfg.lower().split(','):
                     if param in ('on', 'off'):
                         parsed_cfg['p'] = param == 'on'
                     elif param[-1] in parsed_cfg:

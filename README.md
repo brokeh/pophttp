@@ -13,15 +13,15 @@ pophttp is run as a service on a computer and acts like a fake LIFX light runnin
 4. Add the new _**Pop HTTP**_ light to any switch you want to use a HTTP request for, and choose a random color for it. It is recommended to use the _**Basic Mode**_ as this will make the switch more responsive to pressing it twice quickly.
 5. Press the switch and check the console log for the pophttp server. You should see something like the following
     ```
-    2017-04-23 22:05:07,742 192.168.1.25 request 31851h;36751s;32768b;3612k;on not mapped to a URL
+    2017-04-23 22:05:07,742 192.168.1.25 request 31851h,36751s,32768b,3612k,on not mapped to a URL
     ```
-    The `31851h;36751s;32768b;3612k;on` is the ID for the colour you chose, and what is going to be used to identify the light in the config file. Each component of the ID is optional and can be omitted if you want to match multiple actions. You will likely want to omit the final `;on` or `;off` so that it will match the same filter for both the on and off action.
+    The `31851h,36751s,32768b,3612k,on` is the ID for the colour you chose, and what is going to be used to identify the light in the config file. Each component of the ID is optional and can be omitted if you want to match multiple actions. You will likely want to omit the final `,on` or `,off` so that it will match the same filter for both the on and off action.
 6. Now add the new switch to the `config.ini` file under the `[switches]` section. You can include parameters from the fake light in the URL if required using `{}`. See the comments in the config file for full details on how to specify the URL.
     ```ini
     [switches]
-    31851h;36751s;32768b;3612k = http://example.com/switch1?power={onoff}
+    31851h,36751s,32768b,3612k = http://example.com/switch1?power={onoff}
     ```
-    Notice that the `;on` is not included, but instead, the power state is included in the URL as `power={onoff}`.
+    Notice that the `,on` is not included, but instead, the power state is included in the URL as `power={onoff}`.
 7. That's it. Just repeat steps 4 - 6 for each switch.
 
 # Advanced configuration
