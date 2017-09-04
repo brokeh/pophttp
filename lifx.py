@@ -15,7 +15,7 @@ class PayloadDef(object):
         self.members = members.split(' ')
         self.type = namedtuple(name, members)
         self.fmt = '<' + fmt
-        self.length = struct.calcsize(fmt)
+        self.length = struct.calcsize(self.fmt)
 
     def encode(self, members):
         if sys.version_info > (3, 0):
