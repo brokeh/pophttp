@@ -23,6 +23,7 @@ pophttp is run as a service on a computer and acts like a fake LIFX light runnin
     ```
     Notice that the `,on` is not included, but instead, the power state is included in the URL as `power={onoff}`.
 7. That's it. Just repeat steps 4 - 6 for each switch.
+8. Once you're done configuring everything, the `-vv` can be removed from the command to reduce the amount of output to the console.
 
 # Advanced configuration
 If you already have LIFX hardware it is recommended to also include the `ip_filter` option in the `config.ini` file to only respond to your pop bridge. You can find the IP of the bridge in the logs when running with `-vv`. This will prevent the fake light showing up in the LIFX app.
