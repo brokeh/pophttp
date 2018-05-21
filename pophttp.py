@@ -8,10 +8,10 @@ import logging
 import struct
 import lifx
 if sys.version_info >= (3, 0):
-    from configparser import RawConfigParser, NoOptionError, NoSectionError
+    from configparser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
     from urllib.request import urlopen, HTTPError
 else:
-    from ConfigParser import RawConfigParser, NoOptionError, NoSectionError
+    from ConfigParser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
     from urllib2 import urlopen, HTTPError
 try:
     from argparse import ArgumentParser
@@ -23,6 +23,8 @@ except ImportError:
         def parse_args(self):
             return OptionParser.parse_args(self)[0]
 
+class ConfigError(Exception):
+    pass
 
 class MessageHandler(object):
     def __init__(self):
@@ -133,7 +135,7 @@ class Config(object):
         elif len(self.ip_filter) == 2:
             self.ip_filter[1] = int(self.ip_filter[1])
         else:
-            raise Exception('Bad IP address format specified for IP filter')
+            raise ConfigError('Bad IP address format specified for IP filter')
 
 
         if config.has_section('switches'):
@@ -145,7 +147,7 @@ class Config(object):
                     elif param[-1] in parsed_cfg:
                         parsed_cfg[param[-1]] = int(param[:-1])
                     else:
-                        raise Exception('Unknown parameter %s while parsing %s = %s' % (param[-1], cfg, url))
+                        raise ConfigError('Unknown parameter %s while parsing %s = %s' % (param[-1], cfg, url))
                 self.switches.append((parsed_cfg, url))
 
     @staticmethod
@@ -194,5 +196,13 @@ ch.setFormatter(formatter)
 log.addHandler(ch)
 
 
-config = Config(args.config)
+try:
+    config = Config(args.config)
+except ConfigError as err:
+    print(str(err))
+    sys.exit(-2)
+except ParsingError as err:
+    print(str(err))
+    sys.exit(-1)
+
 server_loop(config.interface, MessageHandler())
