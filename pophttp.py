@@ -9,10 +9,10 @@ import struct
 import lifx
 if sys.version_info >= (3, 0):
     from configparser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
-    from urllib.request import urlopen, HTTPError
+    from urllib.request import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
 else:
     from ConfigParser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
-    from urllib2 import urlopen, HTTPError
+    from urllib2 import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
 try:
     from argparse import ArgumentParser
 except ImportError:
@@ -149,6 +149,26 @@ class Config(object):
                     else:
                         raise ConfigError('Unknown parameter %s while parsing %s = %s' % (param[-1], cfg, url))
                 self.switches.append((parsed_cfg, url))
+
+        #special config for specific URLs
+        url_openers = []
+        for top_level_url in config.sections():
+            if not top_level_url.startswith('http://') and top_level_url.startswith('https://'):
+                continue
+            auth = Config._get_val(config, top_level_url, 'auth', None)
+            if auth == 'basic':
+                username = Config._get_val(config, top_level_url, 'username', None)
+                password = Config._get_val(config, top_level_url, 'password', None)
+
+                if username is None:
+                    raise ConfigError("'username' parameter is required when using basic HTTP authentication")
+                if password is None:
+                    raise ConfigError("'password' parameter is required when using basic HTTP authentication")
+
+                password_mgr = HTTPPasswordMgrWithDefaultRealm()
+                password_mgr.add_password(None, top_level_url, username, password)
+                url_openers.append(HTTPBasicAuthHandler(password_mgr))
+        install_opener(build_opener(*url_openers))
 
     @staticmethod
     def _get_val(config, section, option, default):

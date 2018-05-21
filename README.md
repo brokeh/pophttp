@@ -27,3 +27,5 @@ pophttp is run as a service on a computer and acts like a fake LIFX light runnin
 
 # Advanced configuration
 If you already have LIFX hardware it is recommended to also include the `ip_filter` option in the `config.ini` file to only respond to your pop bridge. You can find the IP of the bridge in the logs when running with `-vv`. This will prevent the fake light showing up in the LIFX app.
+
+There are further configuration options available too. Check out the sample `config.ini` provided to see a list of all configuration options and details on how to use them.
