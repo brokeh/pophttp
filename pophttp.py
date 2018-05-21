@@ -182,7 +182,7 @@ class Config(object):
         return [t.format(onoff='on' if power else 'off', hue=hue, saturation=saturation, brightness=brightness, kelvin=kelvin) for t in url_templates]
 
 parser = ArgumentParser(description='Make a fake LIFX light to allow the Logitech pop to send web requests')
-parser.add_argument('-v', dest='verbosity', action='count', default=0, help='verbosity level')
+parser.add_argument('-v', dest='verbosity', action='count', default=0, help='increase verbosity level')
 parser.add_argument('--config', dest='config', metavar='FILE', default='config.ini', help='path to the configuration INI file to use')
 args = parser.parse_args()
 
