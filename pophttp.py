@@ -10,9 +10,11 @@ import lifx
 if sys.version_info >= (3, 0):
     from configparser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
     from urllib.request import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
+    from http.client import BadStatusLine
 else:
     from ConfigParser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
     from urllib2 import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
+    from httplib import BadStatusLine
 try:
     from argparse import ArgumentParser
 except ImportError:
@@ -84,6 +86,8 @@ class MessageHandler(object):
                 resp_code = resp.code
             except HTTPError as err:
                 resp_code = err.code
+            except BadStatusLine as err: #also includes RemoteDisconnected
+                resp_code = -1
             log.info('resp %d %s' % (resp_code, url), extra=dict(clientip=sender[0], clientport=sender[1]))
 
 
