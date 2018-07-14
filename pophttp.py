@@ -10,10 +10,11 @@ import lifx
 if sys.version_info >= (3, 0):
     from configparser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
     from urllib.request import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
+    from urllib.error import URLError
     from http.client import BadStatusLine
 else:
     from ConfigParser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
-    from urllib2 import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
+    from urllib2 import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener, URLError
     from httplib import BadStatusLine
 try:
     from argparse import ArgumentParser
@@ -83,12 +84,11 @@ class MessageHandler(object):
         for url in urls:
             try:
                 resp = urlopen(url)
-                resp_code = resp.code
+                log.info('resp %d %s' % (resp.code, url), extra=dict(clientip=sender[0], clientport=sender[1]))
             except HTTPError as err:
-                resp_code = err.code
-            except BadStatusLine as err: #also includes RemoteDisconnected
-                resp_code = -1
-            log.info('resp %d %s' % (resp_code, url), extra=dict(clientip=sender[0], clientport=sender[1]))
+                log.error('resp %d %s' % (err.code, url), extra=dict(clientip=sender[0], clientport=sender[1]))
+            except (BadStatusLine, URLError) as err: #BadStatusLine also includes RemoteDisconnected
+                log.error('%s %s' % (err, url), extra=dict(clientip=sender[0], clientport=sender[1]))
 
 
 
