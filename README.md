@@ -33,3 +33,21 @@ pophttp is run as a service on a computer and acts like a fake LIFX light runnin
 If you already have LIFX hardware it is recommended to also include the `ip_filter` option in the `config.ini` file to only respond to your pop bridge. You can find the IP of the bridge in the logs when running with `-vv`. This will prevent the fake light showing up in the LIFX app.
 
 There are further configuration options available too. Check out the `config-sample.ini` provided to see a list of all configuration options and details on how to use them.
+
+# Running with Docker
+This repository also contains a `Dockerfile` to allow it to be built into a Docker image.
+1. Build a Docker image and run it with the verbose logging so the unconfigured switches can be seen
+    ```bash
+    docker build -t pophttp .
+    docker run -p 56700:56700/udp -t pophttp -vv
+    ```
+2. Configure your POP switches in the same way as steps 7 & 8 in the Getting Started section above. Be sure to copy the `config-sample.ini` to a file called `config.ini` and edit that. If you don't call it `config.ini` you'll have to specify the config file on the command line when running the Docker image later on.
+3. Stop the current Docker container
+    ```bash
+    docker rm -f $(docker ps | grep pophttp | awk '{print $1}')
+    ```
+4. Rebuild the Docker image with the new `config.ini` and run it again
+    ```bash
+    docker build -t pophttp .
+    docker run -p 56700:56700/udp -t pophttp
+    ```
