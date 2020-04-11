@@ -1,9 +1,8 @@
-FROM alpine:latest
+FROM python:3-alpine
 
-ADD config*.ini lifx.py pophttp.py README.md /pophttp/
-RUN apk add --no-cache python3
+ADD lifx.py pophttp.py README.md /pophttp/
 
 EXPOSE 56700/udp
 
 WORKDIR /pophttp
-ENTRYPOINT ["/usr/bin/python3", "/pophttp/pophttp.py"]
+ENTRYPOINT ["python3", "/pophttp/pophttp.py"]
