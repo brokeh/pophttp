@@ -116,11 +116,11 @@ def server_loop(address, handler):
         elif packet.code in (lifx.Message.Light_SetPower.code, lifx.Message.Light_SetColor.code):
             resp = lifx.Message.Device_Acknowledgment()
 
-        handler.handle_msg(address, packet)
-
         if resp is not None:
             log.debug('send %s', str(resp), extra=dict(clientip=address[0], clientport=address[1]))
             sock.sendto(resp.encode(packet.header.target, packet.header.site), address)
+
+        handler.handle_msg(address, packet)
 
 
 
