@@ -95,6 +95,7 @@ class MessageHandler(object):
 def server_loop(address, handler):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.bind((address, 56700))
+    print('Server started on on %s' % address)
     while True:
         data, address = sock.recvfrom(4096)
         if not config.ip_allowed(address[0]):
@@ -106,7 +107,7 @@ def server_loop(address, handler):
             continue
 
         log.debug('recv %r', packet, extra=dict(clientip=address[0], clientport=address[1]))
-        
+
         resp = None
         if packet.code == lifx.Message.Device_GetVersion.code:
             resp = lifx.Message.Device_StateVersion(vendor=1, product=36, version=0)
@@ -116,7 +117,7 @@ def server_loop(address, handler):
             resp = lifx.Message.Device_Acknowledgment()
 
         handler.handle_msg(address, packet)
-            
+
         if resp is not None:
             log.debug('send %s', str(resp), extra=dict(clientip=address[0], clientport=address[1]))
             sock.sendto(resp.encode(packet.header.target, packet.header.site), address)
