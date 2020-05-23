@@ -5,4 +5,4 @@ ADD lifx.py pophttp.py README.md /pophttp/
 EXPOSE 56700/udp
 
 WORKDIR /pophttp
-ENTRYPOINT ["python3", "/pophttp/pophttp.py"]
+ENTRYPOINT ["python3", "-u", "/pophttp/pophttp.py"]
