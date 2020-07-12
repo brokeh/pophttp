@@ -40,7 +40,7 @@ This repository also contains a `Dockerfile` to allow it to be built into a Dock
     ```bash
     docker build -t pophttp .
     touch config.ini
-    docker run -p 56700:56700/udp -v config.ini:/pophttp/config.ini -t pophttp -vv
+    docker run -p 56700:56700/udp -v `pwd`/config.ini:/pophttp/config.ini -t pophttp -vv
     ```
 2. Configure your POP switches in the same way as steps 7 & 8 in the Getting Started section above in the `config.ini`.
 3. Restart the Docker container to pick up the new config
