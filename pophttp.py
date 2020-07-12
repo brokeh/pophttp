@@ -83,12 +83,13 @@ class MessageHandler(object):
 
         for url in urls:
             try:
+                start = time()
                 resp = urlopen(url)
-                log.info('resp %d %s' % (resp.code, url), extra=dict(clientip=sender[0], clientport=sender[1]))
+                log.info('resp %d in %dms %s' % (resp.code, (time()-start)*1000, url), extra=dict(clientip=sender[0], clientport=sender[1]))
             except HTTPError as err:
-                log.error('resp %d %s' % (err.code, url), extra=dict(clientip=sender[0], clientport=sender[1]))
+                log.error('resp %d in %dms %s' % (err.code, (time()-start)*1000, url), extra=dict(clientip=sender[0], clientport=sender[1]))
             except (BadStatusLine, URLError) as err: #BadStatusLine also includes RemoteDisconnected
-                log.error('%s %s' % (err, url), extra=dict(clientip=sender[0], clientport=sender[1]))
+                log.error('%s in %dms %s' % (err, (time()-start)*1000, url), extra=dict(clientip=sender[0], clientport=sender[1]))
 
 
 
