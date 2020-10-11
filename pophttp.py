@@ -3,10 +3,14 @@
 import site
 import socket
 from time import time
+from collections import defaultdict
 import sys
 import logging
 import struct
-import lifx
+try:
+    import lifx
+except ImportError:
+    from . import lifx
 if sys.version_info >= (3, 0):
     from configparser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
     from urllib.request import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
@@ -26,58 +30,78 @@ except ImportError:
         def parse_args(self):
             return OptionParser.parse_args(self)[0]
 
+log = logging.Logger('')
+
+
 class ConfigError(Exception):
     pass
 
 class MessageHandler(object):
-    def __init__(self):
-        self.power_msg = None
-        self.color_msg = None
-        self.last_triggered = None # The Pop sends multiple of the same message over several seconds, this removes the duplicates
+    class PopBridgeMessageState(object):
+        def __init__(self):
+            self.power_msg = None
+            self.color_msg = None
+            self.last_triggered = None # The Pop sends multiple of the same message over several seconds, this removes the duplicates
 
-    def reset(self):
-        self.power_msg = None
-        self.color_msg = None
-        self.last_triggered = None
+        def reset(self):
+            self.power_msg = None
+            self.color_msg = None
+            self.last_triggered = None
+
+    def __init__(self, config):
+        self.config = config
+        self.bridge_states = defaultdict(self.PopBridgeMessageState)
+        self.last_trigger = None
 
     def handle_msg(self, sender, packet):
-        if self.last_triggered is not None and time() - self.last_triggered >= 5:
-            self.reset()
+        bridge_state = self.bridge_states[sender]
+        if bridge_state.last_triggered is not None and time() - bridge_state.last_triggered >= 5:
+            bridge_state.reset()
 
         if packet.code == lifx.Message.Light_Get.code:
-            self.reset()
+            bridge_state.reset()
         elif packet.code == lifx.Message.Light_SetPower.code:
-            if self.power_msg is not None and packet != self.power_msg:
-                self.reset()
-            self.power_msg = packet
+            if bridge_state.power_msg is not None and packet != bridge_state.power_msg:
+                bridge_state.reset()
+            bridge_state.power_msg = packet
         elif packet.code == lifx.Message.Light_SetColor.code:
-            if self.color_msg is not None and packet != self.color_msg:
-                self.reset()
-            self.color_msg = packet
+            if bridge_state.color_msg is not None and packet != bridge_state.color_msg:
+                bridge_state.reset()
+            bridge_state.color_msg = packet
 
-        if self.power_msg is None or self.color_msg is None:
+        if bridge_state.power_msg is None or bridge_state.color_msg is None:
+            #The Pop bridge sends a pair of messages: power & color. We need both to know the full state of what it is sending
             return
 
-        if self.last_triggered is None:
-            self.last_triggered = time()
-        elif time() - self.last_triggered < 15:
+        if bridge_state.last_triggered is None:
+            bridge_state.last_triggered = time()
+        elif time() - bridge_state.last_triggered < 15:
             return
 
-        urls = config.get_urls(
-            power = self.power_msg.level == lifx.DevicePower.ON,
-            hue = self.color_msg.hue,
-            saturation = self.color_msg.saturation,
-            brightness = self.color_msg.brightness,
-            kelvin = self.color_msg.kelvin
+        this_trigger = (bridge_state.power_msg, bridge_state.color_msg)
+        if self.last_trigger is not None and self.last_trigger == this_trigger:
+            #There are multiple Pop bridges and another bridge has already triggered this message
+            return
+
+        self.last_trigger = this_trigger
+        self.trigger_action(sender, bridge_state.power_msg, bridge_state.color_msg)
+
+    def trigger_action(self, sender, power_msg, color_msg):
+        urls = self.config.get_urls(
+            power = power_msg.level == lifx.DevicePower.ON,
+            hue = color_msg.hue,
+            saturation = color_msg.saturation,
+            brightness = color_msg.brightness,
+            kelvin = color_msg.kelvin
         )
 
         if len(urls) == 0:
             log.warning('request %dh,%ds,%db,%dk,%s not mapped to a URL',
-                self.color_msg.hue,
-                self.color_msg.saturation,
-                self.color_msg.brightness,
-                self.color_msg.kelvin,
-                'on' if self.power_msg.level == lifx.DevicePower.ON else 'off',
+                color_msg.hue,
+                color_msg.saturation,
+                color_msg.brightness,
+                color_msg.kelvin,
+                'on' if power_msg.level == lifx.DevicePower.ON else 'off',
                 extra=dict(clientip=sender[0], clientport=sender[1])
             )
 
@@ -107,7 +131,7 @@ def server_loop(address, handler):
             log.debug('recv Unknown packet type %s', data, extra=dict(clientip=address[0], clientport=address[1]))
             continue
 
-        log.debug('recv %r', packet, extra=dict(clientip=address[0], clientport=address[1]))
+        log.debug('recv %r (%r)', packet, packet.header, extra=dict(clientip=address[0], clientport=address[1]))
 
         resp = None
         if packet.code == lifx.Message.Device_GetVersion.code:
@@ -209,26 +233,26 @@ class Config(object):
 
         return [t.format(onoff='on' if power else 'off', hue=hue, saturation=saturation, brightness=brightness, kelvin=kelvin) for t in url_templates]
 
-parser = ArgumentParser(description='Make a fake LIFX light to allow the Logitech pop to send web requests')
-parser.add_argument('-v', dest='verbosity', action='count', default=0, help='increase verbosity level')
-parser.add_argument('--config', dest='config', metavar='FILE', default='config.ini', help='path to the configuration INI file to use')
-args = parser.parse_args()
+if __name__ == '__main__':
+    parser = ArgumentParser(description='Make a fake LIFX light to allow the Logitech pop to send web requests')
+    parser.add_argument('-v', dest='verbosity', action='count', default=0, help='increase verbosity level')
+    parser.add_argument('--config', dest='config', metavar='FILE', default='config.ini', help='path to the configuration INI file to use')
+    args = parser.parse_args()
 
-log = logging.Logger('')
-ch = logging.StreamHandler()
-ch.setLevel([logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG][min(args.verbosity, 3)])
-formatter = logging.Formatter('%(asctime)-15s %(clientip)s %(message)s')
-ch.setFormatter(formatter)
-log.addHandler(ch)
+    ch = logging.StreamHandler()
+    ch.setLevel([logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG][min(args.verbosity, 3)])
+    formatter = logging.Formatter('%(asctime)-15s %(clientip)s %(message)s')
+    ch.setFormatter(formatter)
+    log.addHandler(ch)
 
 
-try:
-    config = Config(args.config)
-except ConfigError as err:
-    print(str(err))
-    sys.exit(-2)
-except ParsingError as err:
-    print(str(err))
-    sys.exit(-1)
+    try:
+        config = Config(args.config)
+    except ConfigError as err:
+        print(str(err))
+        sys.exit(-2)
+    except ParsingError as err:
+        print(str(err))
+        sys.exit(-1)
 
-server_loop(config.interface, MessageHandler())
+    server_loop(config.interface, MessageHandler(config))
