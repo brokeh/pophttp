@@ -124,11 +124,16 @@ def server_loop(address, handler):
     while True:
         data, address = sock.recvfrom(4096)
         if not config.ip_allowed(address[0]):
-            log.debug('recv filtering packet %s', data, extra=dict(clientip=address[0], clientport=address[1]))
+            log.debug('recv filtering packet %r', data, extra=dict(clientip=address[0], clientport=address[1]))
             continue
-        packet = lifx.Message.decode(data)
+        try:
+            packet = lifx.Message.decode(data)
+        except Exception as exc:
+            log.debug('recv unable to decode packet %r: %r', data, exc, extra=dict(clientip=address[0], clientport=address[1]))
+            continue
+
         if packet is None:
-            log.debug('recv Unknown packet type %s', data, extra=dict(clientip=address[0], clientport=address[1]))
+            log.debug('recv Unknown packet type %r', data, extra=dict(clientip=address[0], clientport=address[1]))
             continue
 
         log.debug('recv %r (%r)', packet, packet.header, extra=dict(clientip=address[0], clientport=address[1]))
