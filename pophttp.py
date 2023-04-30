@@ -1,43 +1,28 @@
 #!/usr/bin/env python
 
-import site
 import socket
 from time import time
 from collections import defaultdict
 import sys
 import logging
-import struct
 try:
     import lifx
+    from config import Config, ConfigError, format_template
 except ImportError:
     from . import lifx
-if sys.version_info >= (3, 0):
-    from configparser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
-    from urllib.request import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
-    from urllib.error import URLError
-    from http.client import BadStatusLine
-else:
-    from ConfigParser import RawConfigParser, NoOptionError, NoSectionError, ParsingError
-    from urllib2 import urlopen, HTTPError, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener, URLError
-    from httplib import BadStatusLine
-try:
-    from argparse import ArgumentParser
-except ImportError:
-    from optparse import OptionParser
-    class ArgumentParser(OptionParser):
-        add_argument = OptionParser.add_option
+    from .config import Config, ConfigError, format_template
+import yaml
+from urllib.request import urlopen, HTTPError, Request
+from urllib.error import URLError
+from http.client import BadStatusLine
+from argparse import ArgumentParser
 
-        def parse_args(self):
-            return OptionParser.parse_args(self)[0]
 
 log = logging.Logger('')
 
 
-class ConfigError(Exception):
-    pass
-
-class MessageHandler(object):
-    class PopBridgeMessageState(object):
+class MessageHandler:
+    class PopBridgeMessageState:
         def __init__(self):
             self.power_msg = None
             self.color_msg = None
@@ -87,7 +72,7 @@ class MessageHandler(object):
         self.trigger_action(sender, bridge_state.power_msg, bridge_state.color_msg)
 
     def trigger_action(self, sender, power_msg, color_msg):
-        urls = self.config.get_urls(
+        targets = self.config.get_target_for_switch(
             power = power_msg.level == lifx.DevicePower.ON,
             hue = color_msg.hue,
             saturation = color_msg.saturation,
@@ -95,7 +80,7 @@ class MessageHandler(object):
             kelvin = color_msg.kelvin
         )
 
-        if len(urls) == 0:
+        if not targets:
             log.warning('request %dh,%ds,%db,%dk,%s not mapped to a URL',
                 color_msg.hue,
                 color_msg.saturation,
@@ -105,16 +90,31 @@ class MessageHandler(object):
                 extra=dict(clientip=sender[0], clientport=sender[1])
             )
 
-        for url in urls:
+        for target in targets:
+            endpoint = self.config.get_endpoint_for_url(target.url)
+            method = target.method
+            headers = target.headers
+            body = None
+            if endpoint is not None:
+                method = endpoint.method or method
+                headers = endpoint.headers | headers
+                body = format_template(
+                    target.body,
+                    power = power_msg.level == lifx.DevicePower.ON,
+                    hue = color_msg.hue,
+                    saturation = color_msg.saturation,
+                    brightness = color_msg.brightness,
+                    kelvin = color_msg.kelvin
+                )
             try:
                 start = time()
-                resp = urlopen(url)
-                log.info('resp %d in %dms %s' % (resp.code, (time()-start)*1000, url), extra=dict(clientip=sender[0], clientport=sender[1]))
+                req = Request(target.url, data=body.encode('utf-8'), headers=headers, method=method)
+                with urlopen(req) as resp:
+                    log.info('resp %d in %dms %s' % (resp.code, (time()-start)*1000, target.url), extra=dict(clientip=sender[0], clientport=sender[1]))
             except HTTPError as err:
-                log.error('resp %d in %dms %s' % (err.code, (time()-start)*1000, url), extra=dict(clientip=sender[0], clientport=sender[1]))
+                log.error('resp %d in %dms %s' % (err.code, (time()-start)*1000, target.url), extra=dict(clientip=sender[0], clientport=sender[1]))
             except (BadStatusLine, URLError) as err: #BadStatusLine also includes RemoteDisconnected
-                log.error('%s in %dms %s' % (err, (time()-start)*1000, url), extra=dict(clientip=sender[0], clientport=sender[1]))
-
+                log.error('%s in %dms %s' % (err, (time()-start)*1000, target.url), extra=dict(clientip=sender[0], clientport=sender[1]))
 
 
 def server_loop(address, handler):
@@ -124,7 +124,7 @@ def server_loop(address, handler):
     print('Server started on on %s' % address)
     while True:
         data, address = sock.recvfrom(4096)
-        if not config.ip_allowed(address[0]):
+        if not config.is_ip_allowed(address[0]):
             log.debug('recv filtering packet %r', data, extra=dict(clientip=address[0], clientport=address[1]))
             continue
         try:
@@ -154,95 +154,10 @@ def server_loop(address, handler):
         handler.handle_msg(address, packet)
 
 
-
-class Config(object):
-    def __init__(self, filename):
-        config = RawConfigParser()
-        config.read(filename)
-
-        self.switches = []
-        self.default_url = Config._get_val(config, 'settings', 'default_url', None)
-        self.interface = Config._get_val(config, 'settings', 'interface', '0.0.0.0')
-        self.ip_filter = Config._get_val(config, 'settings', 'ip_filter', '0.0.0.0/0').split('/')
-
-        self.ip_filter[0] = struct.unpack('>L', socket.inet_aton(self.ip_filter[0]))[0]
-        if len(self.ip_filter) == 1:
-            self.ip_filter.append(32)
-        elif len(self.ip_filter) == 2:
-            self.ip_filter[1] = int(self.ip_filter[1])
-        else:
-            raise ConfigError('Bad IP address format specified for IP filter')
-
-
-        if config.has_section('switches'):
-            for cfg, url in config.items('switches'):
-                parsed_cfg = dict(h=None, s=None, b=None, k=None, p=None)
-                for param in cfg.lower().split(','):
-                    if param in ('on', 'off'):
-                        parsed_cfg['p'] = param == 'on'
-                    elif param[-1] in parsed_cfg:
-                        parsed_cfg[param[-1]] = int(param[:-1])
-                    else:
-                        raise ConfigError('Unknown parameter %s while parsing %s = %s' % (param[-1], cfg, url))
-                self.switches.append((parsed_cfg, url))
-
-        #special config for specific URLs
-        url_openers = []
-        for top_level_url in config.sections():
-            if not top_level_url.startswith('http://') and top_level_url.startswith('https://'):
-                continue
-            auth = Config._get_val(config, top_level_url, 'auth', None)
-            if auth == 'basic':
-                username = Config._get_val(config, top_level_url, 'username', None)
-                password = Config._get_val(config, top_level_url, 'password', None)
-
-                if username is None:
-                    raise ConfigError("'username' parameter is required when using basic HTTP authentication")
-                if password is None:
-                    raise ConfigError("'password' parameter is required when using basic HTTP authentication")
-
-                password_mgr = HTTPPasswordMgrWithDefaultRealm()
-                password_mgr.add_password(None, top_level_url, username, password)
-                url_openers.append(HTTPBasicAuthHandler(password_mgr))
-        install_opener(build_opener(*url_openers))
-
-    @staticmethod
-    def _get_val(config, section, option, default):
-        try:
-            if isinstance(default, bool):
-                return config.getboolean(section, option)
-            elif isinstance(default, float):
-                return config.getfloat(section, option)
-            elif isinstance(default, int):
-                return config.getint(section, option)
-            else:
-                return config.get(section, option)
-        except (NoOptionError, NoSectionError):
-            return default
-
-    def ip_allowed(self, ip):
-        ip = struct.unpack('>L', socket.inet_aton(ip))[0]
-        net_mask = ((1 << self.ip_filter[1]) - 1) << (32-self.ip_filter[1])
-        return ip & net_mask == self.ip_filter[0] & net_mask
-
-    def get_urls(self, hue, saturation, brightness, kelvin, power):
-        url_templates = []
-
-        match = dict(h=hue, s=saturation, b=brightness, k=kelvin, p=power)
-        for filter, url_template in self.switches:
-            this_match = dict((k, None if filter[k] is None else v) for k, v in match.items())
-            if this_match == filter:
-                url_templates.append(url_template)
-
-        if not url_templates and self.default_url is not None:
-            url_templates.append(self.default_url)
-
-        return [t.format(onoff='on' if power else 'off', hue=hue, saturation=saturation, brightness=brightness, kelvin=kelvin) for t in url_templates]
-
 if __name__ == '__main__':
     parser = ArgumentParser(description='Make a fake LIFX light to allow the Logitech pop to send web requests')
     parser.add_argument('-v', dest='verbosity', action='count', default=0, help='increase verbosity level')
-    parser.add_argument('--config', dest='config', metavar='FILE', default='config.ini', help='path to the configuration INI file to use')
+    parser.add_argument('--config', dest='config', metavar='FILE', default='config.yml', help='path to the configuration YAML file to use')
     args = parser.parse_args()
 
     ch = logging.StreamHandler()
@@ -251,13 +166,12 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     log.addHandler(ch)
 
-
     try:
         config = Config(args.config)
     except ConfigError as err:
         print(str(err))
         sys.exit(-2)
-    except ParsingError as err:
+    except yaml.parser.ParserError as err:
         print(str(err))
         sys.exit(-1)
 

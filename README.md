@@ -2,7 +2,8 @@
 pophttp is run as a service on a computer and acts like a fake LIFX light running on your LAN. You then configure the Logitech pop app to make this fake light different colors for each different switch and each unique color is translated into a standard HTTP request.
 
 # Getting started
-1. Install Python 2.6 or later, or Python 3.0 or later if you don't already have 1 of these versions installed.
+1. Install Python 3.6 or later if you don't already have 1 of these versions installed.
+2. Run `pip install -r requirements.txt` to install the required dependencies.
 2. Clone the repo and run `pophttp.py` with `-vv` from the local directory.
     ```bash
     git clone https://github.com/brokeh/pophttp
@@ -20,29 +21,29 @@ pophttp is run as a service on a computer and acts like a fake LIFX light runnin
     2017-04-23 22:05:07,742 192.168.1.25 request 31851h,36751s,32768b,3612k,on not mapped to a URL
     ```
     The `31851h,36751s,32768b,3612k,on` is the ID for the colour you chose, and what is going to be used to identify the light in the config file. Each component of the ID is optional and can be omitted if you want to match multiple actions. You will likely want to omit the final `,on` or `,off` so that it will match the same filter for both the on and off action.
-8. Now add the new switch to the `config.ini` file under the `[switches]` section. You can include parameters from the fake light in the URL if required using `{}`. See the comments in the config file for full details on how to specify the URL.
-    ```ini
-    [switches]
-    31851h,36751s,32768b,3612k = http://example.com/switch1?power={onoff}
+8. Now add the new switch to the `config.yml` file under the `switches` section. You can include parameters from the fake light in the URL if required using `{}`. See the comments in the config file for full details on how to specify the URL.
+    ```yaml
+    switches:
+      31851h,36751s,32768b,3612k: http://example.com/switch1?power={onoff}
     ```
     Notice that the `,on` is not included, but instead, the power state is included in the URL as `power={onoff}`.
 9. Restart the python script for the config changes to take effect and you're done. Just repeat steps 6 - 8 for each switch.
 10. Once you're done configuring everything, the `-vv` can be removed from the command to reduce the amount of output to the console.
 
 # Advanced configuration
-If you already have LIFX hardware it is recommended to also include the `ip_filter` option in the `config.ini` file to only respond to your pop bridge. You can find the IP of the bridge in the logs when running with `-vv`. This will prevent the fake light showing up in the LIFX app.
+If you already have LIFX hardware it is recommended to also include the `ip_filter` option in the `config.yml` file to only respond to your pop bridge. You can find the IP of the bridge in the logs when running with `-vv`. This will prevent the fake light showing up in the LIFX app.
 
-There are further configuration options available too. Check out the `config-sample.ini` provided to see a list of all configuration options and details on how to use them.
+There are further configuration options available too. Check out the `config-sample.yml` provided to see a list of all configuration options and details on how to use them.
 
 # Running with Docker
 This repository also contains a `Dockerfile` to allow it to be built into a Docker image.
-1. Build the Docker image, make an empty `config.ini` file and run it with the verbose logging so the unconfigured switches can be seen
+1. Build the Docker image, make an empty `config.yml` file and run it with the verbose logging so the unconfigured switches can be seen
     ```bash
     docker build -t pophttp .
-    touch config.ini
-    docker run -p 56700:56700/udp -v `pwd`/config.ini:/pophttp/config.ini -t pophttp -vv
+    touch config.yml
+    docker run -p 56700:56700/udp -v `pwd`/config.yml:/pophttp/config.yml -t pophttp -vv
     ```
-2. Configure your POP switches in the same way as steps 7 & 8 in the Getting Started section above in the `config.ini`.
+2. Configure your POP switches in the same way as steps 7 & 8 in the Getting Started section above in the `config.yml`.
 3. Restart the Docker container to pick up the new config
     ```bash
     docker restart pophttp
