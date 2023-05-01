@@ -97,7 +97,8 @@ class MessageHandler:
             body = None
             if endpoint is not None:
                 method = endpoint.method or method
-                headers = endpoint.headers | headers
+                headers = dict(endpoint.headers)
+                headers.update(target.headers)
                 body = format_template(
                     target.body,
                     power = power_msg.level == lifx.DevicePower.ON,
