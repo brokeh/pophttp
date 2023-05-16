@@ -38,8 +38,8 @@ class MessageHandler:
         self.bridge_states = defaultdict(self.PopBridgeMessageState)
         self.last_trigger = None
 
-    def handle_msg(self, sender, packet):
-        bridge_state = self.bridge_states[sender]
+    def handle_msg(self, sender_ip, packet):
+        bridge_state = self.bridge_states[sender_ip]
         if bridge_state.last_triggered is not None and time() - bridge_state.last_triggered >= 5:
             bridge_state.reset()
 
@@ -64,14 +64,14 @@ class MessageHandler:
             return
 
         this_trigger = (bridge_state.power_msg, bridge_state.color_msg)
-        if self.last_trigger is not None and self.last_trigger[1] == this_trigger and self.last_trigger[0] != sender:
+        if self.last_trigger is not None and self.last_trigger[1] == this_trigger and self.last_trigger[0] != sender_ip:
             #There are multiple Pop bridges and another bridge has already triggered this message
             return
 
-        self.last_trigger = (sender, this_trigger)
-        self.trigger_action(sender, bridge_state.power_msg, bridge_state.color_msg)
+        self.last_trigger = (sender_ip, this_trigger)
+        self.trigger_action(sender_ip, bridge_state.power_msg, bridge_state.color_msg)
 
-    def trigger_action(self, sender, power_msg, color_msg):
+    def trigger_action(self, sender_ip, power_msg, color_msg):
         targets = self.config.get_target_for_switch(
             power = power_msg.level == lifx.DevicePower.ON,
             hue = color_msg.hue,
@@ -87,7 +87,7 @@ class MessageHandler:
                 color_msg.brightness,
                 color_msg.kelvin,
                 'on' if power_msg.level == lifx.DevicePower.ON else 'off',
-                extra=dict(clientip=sender[0], clientport=sender[1])
+                extra=dict(sender_ip=sender_ip)
             )
 
         for target in targets:
@@ -111,11 +111,11 @@ class MessageHandler:
                 start = time()
                 req = Request(target.url, data=body.encode('utf-8'), headers=headers, method=method)
                 with urlopen(req) as resp:
-                    log.info('resp %d in %dms %s' % (resp.code, (time()-start)*1000, target.url), extra=dict(clientip=sender[0], clientport=sender[1]))
+                    log.info('resp %d in %dms %s' % (resp.code, (time()-start)*1000, target.url), extra=dict(sender_ip=sender_ip))
             except HTTPError as err:
-                log.error('resp %d in %dms %s' % (err.code, (time()-start)*1000, target.url), extra=dict(clientip=sender[0], clientport=sender[1]))
+                log.error('resp %d in %dms %s' % (err.code, (time()-start)*1000, target.url), extra=dict(sender_ip=sender_ip))
             except (BadStatusLine, URLError) as err: #BadStatusLine also includes RemoteDisconnected
-                log.error('%s in %dms %s' % (err, (time()-start)*1000, target.url), extra=dict(clientip=sender[0], clientport=sender[1]))
+                log.error('%s in %dms %s' % (err, (time()-start)*1000, target.url), extra=dict(sender_ip=sender_ip))
 
 
 def server_loop(address, handler):
@@ -152,7 +152,7 @@ def server_loop(address, handler):
             log.debug('send %s', str(resp), extra=dict(clientip=address[0], clientport=address[1]))
             sock.sendto(resp.encode(packet.header.target, packet.header.site), address)
 
-        handler.handle_msg(address, packet)
+        handler.handle_msg(address[0], packet)
 
 
 if __name__ == '__main__':
