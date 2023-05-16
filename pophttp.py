@@ -126,19 +126,19 @@ def server_loop(address, handler):
     while True:
         data, address = sock.recvfrom(4096)
         if not config.is_ip_allowed(address[0]):
-            log.debug('recv filtering packet %r', data, extra=dict(clientip=address[0], clientport=address[1]))
+            log.debug('recv filtering packet %r', data, extra=dict(sender_ip=address[0], sender_port=address[1]))
             continue
         try:
             packet = lifx.Message.decode(data)
         except Exception as exc:
-            log.debug('recv unable to decode packet %r: %r', data, exc, extra=dict(clientip=address[0], clientport=address[1]))
+            log.debug('recv unable to decode packet %r: %r', data, exc, extra=dict(sender_ip=address[0], sender_port=address[1]))
             continue
 
         if packet is None:
-            log.debug('recv Unknown packet type %r', data, extra=dict(clientip=address[0], clientport=address[1]))
+            log.debug('recv Unknown packet type %r', data, extra=dict(sender_ip=address[0], sender_port=address[1]))
             continue
 
-        log.debug('recv %r (%r)', packet, packet.header, extra=dict(clientip=address[0], clientport=address[1]))
+        log.debug('recv %r (%r)', packet, packet.header, extra=dict(sender_ip=address[0], sender_port=address[1]))
 
         resp = None
         if packet.code == lifx.Message.Device_GetVersion.code:
@@ -149,7 +149,7 @@ def server_loop(address, handler):
             resp = lifx.Message.Device_Acknowledgment()
 
         if resp is not None:
-            log.debug('send %s', str(resp), extra=dict(clientip=address[0], clientport=address[1]))
+            log.debug('send %s', str(resp), extra=dict(sender_ip=address[0], sender_port=address[1]))
             sock.sendto(resp.encode(packet.header.target, packet.header.site), address)
 
         handler.handle_msg(address[0], packet)
@@ -163,7 +163,7 @@ if __name__ == '__main__':
 
     ch = logging.StreamHandler()
     ch.setLevel([logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG][min(args.verbosity, 3)])
-    formatter = logging.Formatter('%(asctime)-15s %(clientip)s %(message)s')
+    formatter = logging.Formatter('%(asctime)-15s %(sender_ip)s %(message)s')
     ch.setFormatter(formatter)
     log.addHandler(ch)
 
