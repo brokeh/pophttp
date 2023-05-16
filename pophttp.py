@@ -64,11 +64,11 @@ class MessageHandler:
             return
 
         this_trigger = (bridge_state.power_msg, bridge_state.color_msg)
-        if self.last_trigger is not None and self.last_trigger == this_trigger:
+        if self.last_trigger is not None and self.last_trigger[1] == this_trigger and self.last_trigger[0] != sender:
             #There are multiple Pop bridges and another bridge has already triggered this message
             return
 
-        self.last_trigger = this_trigger
+        self.last_trigger = (sender, this_trigger)
         self.trigger_action(sender, bridge_state.power_msg, bridge_state.color_msg)
 
     def trigger_action(self, sender, power_msg, color_msg):
