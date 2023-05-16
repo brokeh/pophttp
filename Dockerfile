@@ -1,6 +1,7 @@
-FROM python:3-alpine
+FROM python:3.11-alpine
 
-ADD lifx.py pophttp.py README.md /pophttp/
+ADD config.py lifx.py pophttp.py requirements.txt README.md /pophttp/
+RUN pip install --disable-pip-version-check -r /pophttp/requirements.txt
 
 EXPOSE 56700/udp
 
